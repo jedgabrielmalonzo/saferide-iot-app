@@ -183,6 +183,15 @@
                     <input type="number" id="maxWeight" placeholder="e.g. 1000" value="1000" required>
                 </div>
 
+                <div class="form-group">
+                    <label for="status">Status</label>
+                    <select id="status"
+                        style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; background-color: white;">
+                        <option value="Available">Available</option>
+                        <option value="Not Available">Not Available</option>
+                    </select>
+                </div>
+
                 <button type="submit">Register Jeepney</button>
             </form>
 
@@ -272,6 +281,7 @@
             document.getElementById('route').value = jeepInfo.route || '';
             document.getElementById('maxSeat').value = jeepInfo.max_seat_capacity || 20;
             document.getElementById('maxWeight').value = jeepInfo.max_weight_capacity || 1000;
+            document.getElementById('status').value = jeepInfo.status || 'Available';
 
             const submitBtn = form.querySelector('button[type="submit"]');
             submitBtn.textContent = 'Update Jeepney';
@@ -321,6 +331,7 @@
             const route = document.getElementById('route').value.trim();
             const maxSeat = parseInt(document.getElementById('maxSeat').value);
             const maxWeight = parseInt(document.getElementById('maxWeight').value);
+            const status = document.getElementById('status').value;
 
             if (!jeepId || !route) {
                 showMessage('Please fill in all required fields.', 'error');
@@ -331,6 +342,7 @@
                 if (window.isEditing) {
                     await update(ref(db, 'jeepneys/' + jeepId), {
                         route: route,
+                        status: status,
                         max_weight_capacity: maxWeight,
                         max_seat_capacity: maxSeat,
                         last_updated: Date.now()
@@ -340,7 +352,7 @@
                 } else {
                     await set(ref(db, 'jeepneys/' + jeepId), {
                         route: route,
-                        status: 'Available',
+                        status: status,
                         current_weight: 0,
                         max_weight_capacity: maxWeight,
                         passenger_count: 0,
