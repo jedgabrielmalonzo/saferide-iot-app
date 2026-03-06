@@ -7,6 +7,7 @@
     <title>SafeRide - Premium Admin</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         /* Using Plus Jakarta Sans for maximum readability */
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
@@ -574,6 +575,84 @@
             background: var(--danger-gradient);
             display: block;
         }
+
+        /* Analytics Specific */
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin: 20px 0;
+        }
+
+        .analytics-filters {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .filter-group label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin: 0;
+        }
+
+        .filter-group select {
+            width: auto;
+            min-width: 140px;
+            margin: 0;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .metric-card {
+            background: var(--card-gradient);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin: 8px 0;
+        }
+
+        .metric-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .metric-change {
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+
+        .metric-change.positive {
+            color: #10b981;
+        }
+
+        .metric-change.negative {
+            color: #ef4444;
+        }
     </style>
 </head>
 
@@ -589,6 +668,7 @@
             <a class="nav-link" data-target="view-sim">Simulation Panel</a>
             <a class="nav-link" data-target="view-fleet">Jeepney Fleet</a>
             <a class="nav-link" data-target="view-users">Users</a>
+            <a class="nav-link" data-target="view-analytics">Data Analytics</a>
         </nav>
     </aside>
 
@@ -819,6 +899,92 @@
                     </div>
                 </div>
             </section>
+
+            <!-- DATA ANALYTICS -->
+            <section id="view-analytics" class="view">
+                <div class="analytics-filters">
+                    <div class="filter-group">
+                        <label>Time Period</label>
+                        <select id="analytics-period">
+                            <option value="7">Last 7 Days</option>
+                            <option value="30" selected>Last 30 Days</option>
+                            <option value="90">Last 90 Days</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Jeepney</label>
+                        <select id="analytics-jeepney">
+                            <option value="all">All Jeepneys</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Route</label>
+                        <select id="analytics-route">
+                            <option value="all">All Routes</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-label">Total Passengers</div>
+                        <div class="metric-value" id="metric-total-passengers">0</div>
+                        <div class="metric-change positive" id="metric-passengers-change">+0% vs last period</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Overload Incidents</div>
+                        <div class="metric-value" id="metric-overloads">0</div>
+                        <div class="metric-change negative" id="metric-overloads-change">+0% vs last period</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Peak Hour</div>
+                        <div class="metric-value" id="metric-peak-hour">--:--</div>
+                        <div class="metric-change" id="metric-peak-change">Most busy time</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Avg Load/Trip</div>
+                        <div class="metric-value" id="metric-avg-load">0</div>
+                        <div class="metric-change" id="metric-load-change">passengers per trip</div>
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <div class="card">
+                        <h2 class="card-title">Daily Passenger Count</h2>
+                        <div class="chart-container">
+                            <canvas id="passengerChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h2 class="card-title">Heavy Load Incidents</h2>
+                        <div class="chart-container">
+                            <canvas id="overloadChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <div class="card">
+                        <h2 class="card-title">Hourly Passenger Distribution</h2>
+                        <div class="chart-container">
+                            <canvas id="hourlyChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h2 class="card-title">Route Performance</h2>
+                        <div class="chart-container">
+                            <canvas id="routeChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2 class="card-title">Location Heat Map Analysis</h2>
+                    <div class="chart-container">
+                        <canvas id="locationChart"></canvas>
+                    </div>
+                </div>
+            </section>
         </div>
     </main>
 
@@ -899,6 +1065,7 @@
                     if (v.id === t) v.classList.add('active');
                 });
                 if (t === 'view-sim') setTimeout(() => { initMap(); if (map) map.invalidateSize(); }, 200);
+                if (t === 'view-analytics') setTimeout(() => initAnalytics(), 200);
             });
         });
 
@@ -930,6 +1097,7 @@
 
         let jeeps = {}; let users = {};
         let sId = null; let sData = null; let sLis = null;
+        let analyticsCharts = {}; let analyticsData = {};
 
         // Fetchers
         onValue(ref(db, 'users'), s => { users = s.val() || {}; refreshData(); });
@@ -1170,6 +1338,281 @@
         function msg(id, txt, cls) {
             const e = document.getElementById(id); e.textContent = txt; e.className = `msg ${cls}`;
             setTimeout(() => e.style.display = 'none', 2500);
+        }
+
+        // Analytics Functions
+        function initAnalytics() {
+            updateAnalyticsFilters();
+            createCharts();
+            updateAnalyticsData();
+        }
+
+        function updateAnalyticsFilters() {
+            // Update jeepney filter
+            const jeepSelect = document.getElementById('analytics-jeepney');
+            let options = '<option value="all">All Jeepneys</option>';
+            Object.keys(jeeps).forEach(id => {
+                const j = jeeps[id];
+                options += `<option value="${id}">${j.name || j.plate_number || id}</option>`;
+            });
+            jeepSelect.innerHTML = options;
+
+            // Update route filter
+            const routeSelect = document.getElementById('analytics-route');
+            const routes = new Set();
+            Object.values(jeeps).forEach(j => {
+                if (j.route) routes.add(j.route);
+            });
+            let routeOptions = '<option value="all">All Routes</option>';
+            routes.forEach(route => {
+                routeOptions += `<option value="${route}">${route}</option>`;
+            });
+            routeSelect.innerHTML = routeOptions;
+
+            // Add event listeners
+            document.getElementById('analytics-period').addEventListener('change', updateAnalyticsData);
+            document.getElementById('analytics-jeepney').addEventListener('change', updateAnalyticsData);
+            document.getElementById('analytics-route').addEventListener('change', updateAnalyticsData);
+        }
+
+        function createCharts() {
+            const chartOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            };
+
+            // Passenger Count Chart
+            const passengerCtx = document.getElementById('passengerChart').getContext('2d');
+            analyticsCharts.passenger = new Chart(passengerCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Daily Passengers',
+                        data: [],
+                        borderColor: '#6366f1',
+                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: chartOptions
+            });
+
+            // Overload Chart
+            const overloadCtx = document.getElementById('overloadChart').getContext('2d');
+            analyticsCharts.overload = new Chart(overloadCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Overload Incidents',
+                        data: [],
+                        borderColor: '#ef4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: chartOptions
+            });
+
+            // Hourly Chart
+            const hourlyCtx = document.getElementById('hourlyChart').getContext('2d');
+            analyticsCharts.hourly = new Chart(hourlyCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00'],
+                    datasets: [{
+                        label: 'Avg Passengers per Hour',
+                        data: [],
+                        backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                        borderColor: '#10b981',
+                        borderWidth: 1
+                    }]
+                },
+                options: chartOptions
+            });
+
+            // Route Performance Chart
+            const routeCtx = document.getElementById('routeChart').getContext('2d');
+            analyticsCharts.route = new Chart(routeCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Passengers by Route',
+                        data: [],
+                        backgroundColor: [
+                            '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+                            '#06b6d4', '#84cc16', '#f97316', '#ec4899', '#14b8a6'
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                        }
+                    }
+                }
+            });
+
+            // Location Chart (Bar chart showing passenger count by location zones)
+            const locationCtx = document.getElementById('locationChart').getContext('2d');
+            analyticsCharts.location = new Chart(locationCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Zone A (North)', 'Zone B (South)', 'Zone C (East)', 'Zone D (West)', 'Zone E (Center)'],
+                    datasets: [{
+                        label: 'Passenger Pickups by Zone',
+                        data: [],
+                        backgroundColor: 'rgba(99, 102, 241, 0.7)',
+                        borderColor: '#6366f1',
+                        borderWidth: 1
+                    }, {
+                        label: 'Overload Incidents by Zone',
+                        data: [],
+                        backgroundColor: 'rgba(239, 68, 68, 0.7)',
+                        borderColor: '#ef4444',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateAnalyticsData() {
+            const period = parseInt(document.getElementById('analytics-period').value);
+            const selectedJeepney = document.getElementById('analytics-jeepney').value;
+            const selectedRoute = document.getElementById('analytics-route').value;
+
+            // Generate sample data based on current jeepneys and simulate historical data
+            const days = period;
+            const labels = [];
+            const passengerData = [];
+            const overloadData = [];
+            const hourlyData = new Array(8).fill(0);
+            const routeData = {};
+            const locationData = [0, 0, 0, 0, 0]; // 5 zones
+            const locationOverloads = [0, 0, 0, 0, 0];
+
+            // Generate daily data
+            for (let i = days - 1; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+                
+                // Simulate passenger data with some realistic patterns
+                const basePassengers = 150 + Math.random() * 100;
+                const weekendFactor = [0, 6].includes(date.getDay()) ? 0.7 : 1; // Lower on weekends
+                const dailyPassengers = Math.round(basePassengers * weekendFactor);
+                passengerData.push(dailyPassengers);
+                
+                // Simulate overload incidents (roughly 5-15% of total capacity breaches)
+                const overloads = Math.round(dailyPassengers * (0.05 + Math.random() * 0.1));
+                overloadData.push(overloads);
+            }
+
+            // Generate hourly distribution (rush hours pattern)
+            const hourlyPattern = [5, 8, 25, 45, 35, 40, 55, 30]; // Simulated hourly averages
+            hourlyPattern.forEach((base, i) => {
+                hourlyData[i] = base + Math.round(Math.random() * 15);
+            });
+
+            // Generate route data
+            const routes = new Set();
+            Object.values(jeeps).forEach(j => {
+                if (j.route) routes.add(j.route);
+            });
+            
+            if (routes.size === 0) {
+                // Default routes if none exist
+                ['Route A', 'Route B', 'Route C'].forEach(route => routes.add(route));
+            }
+            
+            routes.forEach(route => {
+                routeData[route] = Math.round(100 + Math.random() * 200);
+            });
+
+            // Generate location data (simulate GPS zone analysis)
+            for (let i = 0; i < 5; i++) {
+                locationData[i] = Math.round(50 + Math.random() * 100);
+                locationOverloads[i] = Math.round(locationData[i] * (0.05 + Math.random() * 0.1));
+            }
+
+            // Update charts
+            analyticsCharts.passenger.data.labels = labels;
+            analyticsCharts.passenger.data.datasets[0].data = passengerData;
+            analyticsCharts.passenger.update();
+
+            analyticsCharts.overload.data.labels = labels;
+            analyticsCharts.overload.data.datasets[0].data = overloadData;
+            analyticsCharts.overload.update();
+
+            analyticsCharts.hourly.data.datasets[0].data = hourlyData;
+            analyticsCharts.hourly.update();
+
+            analyticsCharts.route.data.labels = Array.from(routes);
+            analyticsCharts.route.data.datasets[0].data = Array.from(routes).map(r => routeData[r]);
+            analyticsCharts.route.update();
+
+            analyticsCharts.location.data.datasets[0].data = locationData;
+            analyticsCharts.location.data.datasets[1].data = locationOverloads;
+            analyticsCharts.location.update();
+
+            // Update metrics
+            const totalPassengers = passengerData.reduce((a, b) => a + b, 0);
+            const totalOverloads = overloadData.reduce((a, b) => a + b, 0);
+            const peakHourIndex = hourlyData.indexOf(Math.max(...hourlyData));
+            const peakHour = ['12AM', '3AM', '6AM', '9AM', '12PM', '3PM', '6PM', '9PM'][peakHourIndex];
+            const avgLoadPerTrip = Math.round(totalPassengers / (Object.keys(jeeps).length || 1) / days);
+
+            document.getElementById('metric-total-passengers').textContent = totalPassengers.toLocaleString();
+            document.getElementById('metric-overloads').textContent = totalOverloads;
+            document.getElementById('metric-peak-hour').textContent = peakHour;
+            document.getElementById('metric-avg-load').textContent = avgLoadPerTrip;
+
+            // Calculate changes (simulate percentage changes)
+            const passengerChange = Math.round((Math.random() - 0.4) * 20); // -8% to +12%
+            const overloadChange = Math.round((Math.random() - 0.3) * 30); // -9% to +21%
+            
+            document.getElementById('metric-passengers-change').textContent = 
+                `${passengerChange >= 0 ? '+' : ''}${passengerChange}% vs last period`;
+            document.getElementById('metric-passengers-change').className = 
+                `metric-change ${passengerChange >= 0 ? 'positive' : 'negative'}`;
+                
+            document.getElementById('metric-overloads-change').textContent = 
+                `${overloadChange >= 0 ? '+' : ''}${overloadChange}% vs last period`;
+            document.getElementById('metric-overloads-change').className = 
+                `metric-change ${overloadChange >= 0 ? 'negative' : 'positive'}`;
         }
     </script>
 </body>
