@@ -14,6 +14,10 @@ class JeepneyData {
   final bool isOverloaded;
   final int etaSeconds; // Mock ETA
   final int lastUpdated;
+  final String? operatorName;
+  final String? plateNumber;
+  final String? jeepneyName;
+  final String? routeDescription;
 
   JeepneyData({
     required this.id,
@@ -31,6 +35,10 @@ class JeepneyData {
     required this.isOverloaded,
     required this.etaSeconds,
     required this.lastUpdated,
+    this.operatorName,
+    this.plateNumber,
+    this.jeepneyName,
+    this.routeDescription,
   });
 
   factory JeepneyData.fromMap(String id, Map<dynamic, dynamic> map) {
@@ -54,6 +62,10 @@ class JeepneyData {
       lastUpdated:
           (map['last_updated'] as num?)?.toInt() ??
           DateTime.now().millisecondsSinceEpoch,
+      operatorName: map['operator_name'] as String? ?? 'Juan Dela Cruz', // Mock default
+      plateNumber: map['plate_number'] as String? ?? 'ABC 1234', // Mock default
+      jeepneyName: map['jeepney_name'] as String? ?? 'Golden Arc Expressway', // Mock default
+      routeDescription: map['route_description'] as String? ?? 'via Commonwealth, Litex', // Mock default
     );
   }
 
@@ -73,6 +85,10 @@ class JeepneyData {
       'is_overloaded': isOverloaded,
       'eta_seconds': etaSeconds,
       'last_updated': lastUpdated,
+      'operator_name': operatorName,
+      'plate_number': plateNumber,
+      'jeepney_name': jeepneyName,
+      'route_description': routeDescription,
     };
   }
 }
