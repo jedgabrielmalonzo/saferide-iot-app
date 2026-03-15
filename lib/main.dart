@@ -34,9 +34,9 @@ class ParaGoApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         fontFamily: 'Segoe UI', // Clean font
-        primaryColor: const Color(0xFF1A7D6F),
+        primaryColor: const Color(0xFF2D6A1E),
         scaffoldBackgroundColor: Colors.white,
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1A7D6F)),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2D6A1E)),
         useMaterial3: true,
       ),
       home: const SplashScreen(),

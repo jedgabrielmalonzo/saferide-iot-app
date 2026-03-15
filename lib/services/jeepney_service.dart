@@ -242,6 +242,57 @@ class JeepneyService {
     }
     return result;
   }
+
+  // ── Passenger Alert System ────────────────────────────────────────────────
+
+  /// Send an alert from a passenger to the operator of a jeepney
+  Future<void> sendPassengerAlert({
+    required String jeepId,
+    required String type,
+    required String message,
+    required String passengerName,
+  }) async {
+    await _dbRef.child('jeepneys/$jeepId/alerts').push().set({
+      'type': type,
+      'message': message,
+      'passengerName': passengerName,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+      'dismissed': false,
+    });
+  }
+
+  /// Stream active (undismissed) alerts for a jeepney
+  Stream<List<Map<String, dynamic>>> streamAlerts(String jeepId) {
+    return _dbRef
+        .child('jeepneys/$jeepId/alerts')
+        .orderByChild('dismissed')
+        .equalTo(false)
+        .onValue
+        .map<List<Map<String, dynamic>>>((event) {
+      final value = event.snapshot.value;
+      if (value == null) return [];
+
+      final Map<dynamic, dynamic> alertsMap = value as Map<dynamic, dynamic>;
+      final alerts = <Map<String, dynamic>>[];
+
+      for (var entry in alertsMap.entries) {
+        final data = Map<String, dynamic>.from(entry.value as Map);
+        data['id'] = entry.key.toString();
+        alerts.add(data);
+      }
+
+      // Sort by timestamp descending (newest first)
+      alerts.sort((a, b) => (b['timestamp'] as int).compareTo(a['timestamp'] as int));
+      return alerts;
+    });
+  }
+
+  /// Dismiss an alert
+  Future<void> dismissAlert(String jeepId, String alertId) async {
+    await _dbRef.child('jeepneys/$jeepId/alerts/$alertId').update({
+      'dismissed': true,
+    });
+  }
 }
 
 // Extension to throttle the stream

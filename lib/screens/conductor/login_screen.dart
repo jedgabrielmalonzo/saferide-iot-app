@@ -75,10 +75,11 @@ class _ConductorLoginScreenState extends State<ConductorLoginScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(
-              Icons.directions_bus_filled,
-              size: 64,
-              color: Color(0xFF1A7D6F),
+            Image.asset(
+              'assets/images/logo.png',
+              width: 100,
+              height: 100,
+              fit: BoxFit.contain,
             ),
             const SizedBox(height: 24),
             const Text(
@@ -118,7 +119,7 @@ class _ConductorLoginScreenState extends State<ConductorLoginScreen> {
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _handleLogin,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1A7D6F),
+                  backgroundColor: const Color(0xFF2D6A1E),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),

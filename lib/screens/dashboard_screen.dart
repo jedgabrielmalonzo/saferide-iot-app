@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -19,17 +20,31 @@ class _DashboardScreenState extends State<DashboardScreen>
   late Stream<JeepneyData> _jeepStream;
   final MapController _mapController = MapController();
 
+  // Passenger alerts
+  List<Map<String, dynamic>> _alerts = [];
+  late StreamSubscription _alertSubscription;
+
   @override
   void initState() {
     super.initState();
     _jeepStream = _service.streamJeepneyData(widget.jeepId);
     _service.initializeNotifications();
     _service.startLocationUpdates(widget.jeepId);
+
+    // Subscribe to passenger alerts
+    _alertSubscription = _service.streamAlerts(widget.jeepId).listen((alerts) {
+      if (mounted) setState(() => _alerts = alerts);
+    });
+  }
+
+  @override
+  void dispose() {
+    _alertSubscription.cancel();
+    super.dispose();
   }
 
   // Helper for smooth map movement
   void _animatedMapMove(LatLng destLocation, double destZoom) {
-    // Create some variables that will be used for the animation
     final latTween = Tween<double>(
       begin: _mapController.camera.center.latitude,
       end: destLocation.latitude,
@@ -43,14 +58,11 @@ class _DashboardScreenState extends State<DashboardScreen>
       end: destZoom,
     );
 
-    // Create a animation controller that has a duration and a TickerProvider
     final controller = AnimationController(
       duration: const Duration(milliseconds: 1000),
       vsync: this,
     );
 
-    // The animation determines what path the animation will take. You can try different Curves values, although I found
-    // fastOutSlowIn to be my favorite.
     final Animation<double> animation = CurvedAnimation(
       parent: controller,
       curve: Curves.fastOutSlowIn,
@@ -74,17 +86,61 @@ class _DashboardScreenState extends State<DashboardScreen>
     controller.forward();
   }
 
+  String _timeAgo(int timestamp) {
+    final diff = DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(timestamp));
+    if (diff.inSeconds < 60) return "${diff.inSeconds}s ago";
+    if (diff.inMinutes < 60) return "${diff.inMinutes}m ago";
+    return "${diff.inHours}h ago";
+  }
+
+  IconData _alertIcon(String type) {
+    switch (type) {
+      case 'stop_request':
+        return Icons.pan_tool_rounded;
+      case 'emergency':
+        return Icons.warning_rounded;
+      case 'overloading':
+        return Icons.groups_rounded;
+      default:
+        return Icons.notification_important_rounded;
+    }
+  }
+
+  Color _alertColor(String type) {
+    switch (type) {
+      case 'stop_request':
+        return const Color(0xFFFF9800);
+      case 'emergency':
+        return const Color(0xFFD32F2F);
+      case 'overloading':
+        return const Color(0xFF1565C0);
+      default:
+        return Colors.grey;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        title: Text(
-          widget.jeepId.toUpperCase().replaceAll('_', ' '),
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset(
+              'assets/images/logo.png',
+              height: 32,
+              fit: BoxFit.contain,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              widget.jeepId.toUpperCase().replaceAll('_', ' '),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+          ],
         ),
         centerTitle: true,
         backgroundColor: Colors.white,
@@ -104,14 +160,12 @@ class _DashboardScreenState extends State<DashboardScreen>
           final data = snapshot.data!;
           final isPassengerOverloaded =
               data.passengerCount >= data.maxSeatCapacity;
-          // Better logic: derive weight overload manually if data.isOverloaded is ambiguous, but likely it reflects weight.
-          // Let's use explicit check:
           final bool weightLimitExceeded =
               data.currentWeight > data.maxWeightCapacity;
 
           return Column(
             children: [
-              // 1. Alert Banners
+              // 1. Overload Alert Banners
               if (weightLimitExceeded)
                 _buildAlertBanner(
                   "WEIGHT LIMIT EXCEEDED!",
@@ -123,6 +177,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                   Icons.groups_rounded,
                 ),
 
+              // 2. Passenger Alert Banners
+              ..._alerts.map((alert) => _buildPassengerAlertBanner(alert)),
+
               Expanded(
                 child: SingleChildScrollView(
                   child: Padding(
@@ -130,14 +187,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // 2. Map Card (Prominent, Top)
+                        // Map Card
                         Container(
                           height: MediaQuery.of(context).size.height * 0.35,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(20),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.1),
+                                color: Colors.black.withOpacity(0.1),
                                 blurRadius: 15,
                                 offset: const Offset(0, 5),
                               ),
@@ -172,7 +229,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                                           height: 80,
                                           child: const Icon(
                                             Icons.directions_bus,
-                                            color: Color(0xFF1A7D6F),
+                                            color: Color(0xFF2D6A1E),
                                             size: 40,
                                           ),
                                         ),
@@ -180,7 +237,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                                     ),
                                   ],
                                 ),
-                                // Map Overlay Controls (e.g., Recenter)
                                 Positioned(
                                   bottom: 16,
                                   right: 16,
@@ -205,7 +261,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
                         const SizedBox(height: 24),
 
-                        // 3. Stats Grid
+                        // Stats Grid
                         Row(
                           children: [
                             Expanded(
@@ -230,7 +286,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 icon: Icons.scale_rounded,
                                 color: weightLimitExceeded
                                     ? Colors.red
-                                    : const Color(0xFF1A7D6F),
+                                    : const Color(0xFF2D6A1E),
                                 isAlert: weightLimitExceeded,
                               ),
                             ),
@@ -239,7 +295,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
                         const SizedBox(height: 24),
 
-                        // 4. Vehicle Details (Minimalist)
+                        // Vehicle Details
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
@@ -247,7 +303,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                             borderRadius: BorderRadius.circular(16),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.05),
+                                color: Colors.black.withOpacity(0.05),
                                 blurRadius: 10,
                                 offset: const Offset(0, 4),
                               ),
@@ -287,6 +343,58 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  // ── Passenger Alert Banner ────────────────────────────────────────────────
+  Widget _buildPassengerAlertBanner(Map<String, dynamic> alert) {
+    final type = alert['type'] ?? 'unknown';
+    final message = alert['message'] ?? 'Alert from passenger';
+    final name = alert['passengerName'] ?? 'A passenger';
+    final timestamp = alert['timestamp'] as int? ?? 0;
+    final alertId = alert['id'] as String;
+    final color = _alertColor(type);
+
+    return Container(
+      color: color.withOpacity(0.95),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+      margin: const EdgeInsets.only(bottom: 1),
+      child: Row(
+        children: [
+          Icon(_alertIcon(type), color: Colors.white, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  message,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+                Text(
+                  "$name • ${_timeAgo(timestamp)}",
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.8),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, color: Colors.white, size: 20),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            onPressed: () {
+              _service.dismissAlert(widget.jeepId, alertId);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStatCard({
     required String title,
     required String value,
@@ -298,7 +406,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isAlert ? color.withValues(alpha: 0.1) : Colors.white,
+        color: isAlert ? color.withOpacity(0.1) : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isAlert ? color : Colors.transparent,
@@ -306,7 +414,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         ),
         boxShadow: [
           BoxShadow(
-            color: color.withValues(alpha: 0.1),
+            color: color.withOpacity(0.1),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -397,7 +505,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     return Container(
       color: Colors.redAccent,
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-      margin: const EdgeInsets.only(bottom: 1), // Separator if multiple
+      margin: const EdgeInsets.only(bottom: 1),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [

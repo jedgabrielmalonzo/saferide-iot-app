@@ -11,7 +11,8 @@ import '../../services/auth_service.dart';
 import '../../models/jeepney_data.dart';
 import '../../models/user_profile.dart';
 import '../splash_screen.dart';
-import '../login_screen.dart'; // Added import for LoginScreen
+import '../login_screen.dart';
+import '../user_settings_screen.dart';
 import 'vehicle_details_screen.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -33,6 +34,7 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
   bool _isLocating = true;
   bool _isLoading = false;
   String? _locationAddress;
+  String _selectedRouteFilter = 'All';
 
   @override
   void initState() {
@@ -42,8 +44,8 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
   }
 
   String get _displayName {
-    if (_userProfile?.name == null || _userProfile!.name.isEmpty) return 'Unknown';
-    return _userProfile!.name;
+    if (_userProfile?.name == null || _userProfile!.name.isEmpty) return 'Passenger';
+    return _userProfile!.name.split(' ').first; // First name only
   }
 
   String _greeting() {
@@ -64,29 +66,21 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
   Future<void> _getUserLocation() async {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        setState(() => _isLocating = false);
-        return;
-      }
+      if (!serviceEnabled) { setState(() => _isLocating = false); return; }
 
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          setState(() => _isLocating = false);
-          return;
+          setState(() => _isLocating = false); return;
         }
       }
       if (permission == LocationPermission.deniedForever) {
-        setState(() => _isLocating = false);
-        return;
+        setState(() => _isLocating = false); return;
       }
 
       final position = await Geolocator.getCurrentPosition();
-      setState(() {
-        _userPosition = position;
-        _isLocating = false;
-      });
+      setState(() { _userPosition = position; _isLocating = false; });
       _reverseGeocode(position.latitude, position.longitude);
     } catch (e) {
       setState(() => _isLocating = false);
@@ -98,31 +92,22 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
       final url = Uri.parse(
         'https://nominatim.openstreetmap.org/reverse?lat=$lat&lon=$lng&format=json&addressdetails=1',
       );
-      final response = await http.get(url, headers: {
-        'User-Agent': 'ParaGoApp/1.0',
-      });
+      final response = await http.get(url, headers: {'User-Agent': 'ParaGoApp/1.0'});
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final address = data['address'] as Map<String, dynamic>?;
         if (address != null && mounted) {
-          // Build a readable address from parts
           final road = address['road'] ?? address['pedestrian'] ?? address['highway'];
           final suburb = address['suburb'] ?? address['neighbourhood'] ?? address['village'];
           final city = address['city'] ?? address['town'] ?? address['municipality'];
-          
           final parts = <String>[];
           if (road != null) parts.add(road.toString());
           if (suburb != null) parts.add(suburb.toString());
           if (city != null) parts.add(city.toString());
-          
-          if (parts.isNotEmpty) {
-            setState(() => _locationAddress = parts.join(', '));
-          }
+          if (parts.isNotEmpty) setState(() => _locationAddress = parts.join(', '));
         }
       }
-    } catch (e) {
-      // Silently fail — coordinates will be shown as fallback
-    }
+    } catch (e) { /* silently fail */ }
   }
 
   String? _selectedJeepId;
@@ -130,36 +115,38 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F8),
-      body: Stack( // Wrapped body in a Stack
+      body: Stack(
         children: [
           Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Teal header ──────────────────────────────────────────────────
+              // ── Header ─────────────────────────────────────────────────────
               _buildHeader(context),
-
-              // ── Scrollable body ──────────────────────────────────────────────
+              // ── Scrollable body ─────────────────────────────────────────────
               Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Map card
-                      _buildMapCard(),
-                      const SizedBox(height: 16),
-
-                      // Current location
-                      _buildLocationRow(),
-                      const SizedBox(height: 20),
-
-                      // Select route
-                      _buildRouteSelector(context),
-                      const SizedBox(height: 20),
-
-                      // Nearby jeepneys section
-                      _buildNearbyJeepneys(context),
-                    ],
+                child: DecoratedBox(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFFF7FBF4), Color(0xFFE6F2DF)],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                  ),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Map card
+                        _buildMapCard(context),
+                        const SizedBox(height: 20),
+                        // Select route
+                        _buildRouteSelector(context),
+                        const SizedBox(height: 20),
+                        // Nearby jeepneys section
+                        _buildNearbyJeepneys(context),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -172,11 +159,11 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
                 child: Card(
                   elevation: 8,
                   child: Padding(
-                    padding: EdgeInsets.all(24.0),
+                    padding: EdgeInsets.all(24),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        CircularProgressIndicator(color: Color(0xFF1A7D6F)),
+                        CircularProgressIndicator(color: Color(0xFF2D6A1E)),
                         SizedBox(height: 16),
                         Text("Logging out...", style: TextStyle(fontWeight: FontWeight.w600)),
                       ],
@@ -190,252 +177,240 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
     );
   }
 
-  // ── HEADER ─────────────────────────────────────────────────────────────────
+  // ── HEADER — TripGlide-inspired ────────────────────────────────────────────
   Widget _buildHeader(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF1A7D6F), Color(0xFF25A896)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
+      color: Colors.white,
       child: SafeArea(
         bottom: false,
-        child: Stack(
-          children: [
-            // Decorative city silhouette
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: SizedBox(
-                height: 70,
-                child: CustomPaint(
-                  size: Size(MediaQuery.of(context).size.width, 70),
-                  painter: _CitySkylinePainter(),
-                ),
-              ),
-            ),
-
-            // Content
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 56),
-              child: Column(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 28, 22, 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Row 1: Greeting + Avatar ──────────────────────────────────
+              Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Top row: avatar + sign out
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundColor: Colors.white24,
-                        backgroundImage: _userProfile?.profilePictureUrl != null
-                            ? NetworkImage(_userProfile!.profilePictureUrl!)
-                            : null,
-                        child: _userProfile?.profilePictureUrl == null
-                            ? const Icon(Icons.person, color: Colors.white, size: 22)
-                            : null,
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.logout, color: Colors.white70, size: 22),
-                        onPressed: () {
-                          final outerContext = context;
-                          showDialog(
-                            context: context,
-                            builder: (dialogContext) => Dialog(
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                              child: Padding(
-                                padding: const EdgeInsets.all(24.0),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(16),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF1A7D6F).withOpacity(0.1),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Icon(Icons.logout_rounded, color: Color(0xFF1A7D6F), size: 32),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    const Text(
-                                      "Logout",
-                                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      "Are you sure you want to sign out of your account?",
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                                    ),
-                                    const SizedBox(height: 24),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: TextButton(
-                                            onPressed: () => Navigator.pop(dialogContext),
-                                            style: TextButton.styleFrom(
-                                              padding: const EdgeInsets.symmetric(vertical: 14),
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                            ),
-                                            child: Text("Cancel", style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.w600)),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: ElevatedButton(
-                                            onPressed: () async {
-                                              print("[PassengerMapScreen] Logout confirmed by user");
-                                              Navigator.pop(dialogContext); // Close dialog
-                                              
-                                              setState(() => _isLoading = true); // Set _isLoading to true
-
-                                              try {
-                                                print("[PassengerMapScreen] Calling signOut with 5s timeout...");
-                                                await _authService.signOut().timeout(
-                                                  const Duration(seconds: 5),
-                                                  onTimeout: () => print("[PassengerMapScreen] signOut timed out!"),
-                                                );
-                                              } catch (e) {
-                                                print("[PassengerMapScreen] Error during signOut call: $e");
-                                              }
-
-                                              if (outerContext.mounted) {
-                                                print("[PassengerMapScreen] Navigating directly to LoginScreen...");
-                                                Navigator.of(outerContext).pushAndRemoveUntil(
-                                                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                                                  (_) => false,
-                                                );
-                                              }
-                                              
-                                              // Fallback if navigation somehow fails
-                                              if (mounted) {
-                                                setState(() => _isLoading = false);
-                                              }
-                                            },
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: const Color(0xFFD32F2F),
-                                              foregroundColor: Colors.white,
-                                              elevation: 0,
-                                              padding: const EdgeInsets.symmetric(vertical: 14),
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                            ),
-                                            child: const Text("Logout", style: TextStyle(fontWeight: FontWeight.bold)),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    "${_greeting()}, $_displayName",
-                    style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "${_greeting()}, $_displayName 👋",
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1A1A1A),
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          "Where are you heading today?",
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    "Track your nearest ParaGo jeepney.",
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.white70,
+                  const SizedBox(width: 12),
+                  // Avatar → Settings
+                  GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => UserSettingsScreen(userProfile: _userProfile),
+                      ),
+                    ),
+                    child: Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFF2D6A1E), width: 2),
+                        color: const Color(0xFFEFF7EA),
+                      ),
+                      child: ClipOval(
+                        child: _userProfile?.profilePictureUrl != null
+                            ? Image.network(_userProfile!.profilePictureUrl!, fit: BoxFit.cover)
+                            : const Icon(Icons.person, color: Color(0xFF2D6A1E), size: 24),
+                      ),
                     ),
                   ),
                 ],
               ),
-            ),
-          ],
+
+              const SizedBox(height: 14),
+
+              // ── Location chip ─────────────────────────────────────────────
+              Row(
+                children: [
+                  const Icon(Icons.location_on, color: Color(0xFF2D6A1E), size: 16),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      _isLocating
+                          ? "Getting your location…"
+                          : (_locationAddress ?? "Location unavailable"),
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
+
   // ── MAP CARD ───────────────────────────────────────────────────────────────
-  Widget _buildMapCard() {
+  Widget _buildMapCard(BuildContext context) {
     final lat = _userPosition?.latitude ?? 14.7338;
     final lng = _userPosition?.longitude ?? 121.1249;
 
-    return Container(
-      height: 200,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.10),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PassengerLiveMapScreen(
+            userPosition: _userPosition,
           ),
-        ],
+        ),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: _isLocating
-            ? Container(
-                color: Colors.grey[200],
-                child: const Center(
-                  child: CircularProgressIndicator(color: Color(0xFF25A896)),
-                ),
-              )
-            : FlutterMap(
-                options: MapOptions(
-                  initialCenter: LatLng(lat, lng),
-                  initialZoom: 15.0,
-                  interactionOptions: const InteractionOptions(
-                    flags: InteractiveFlag.none, // static preview
-                  ),
-                ),
-                children: [
-                  TileLayer(
-                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.parago.app',
-                  ),
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: LatLng(lat, lng),
-                        width: 40,
-                        height: 40,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF25A896).withOpacity(0.25),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
+      child: Container(
+        height: 230,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF2D6A1E).withOpacity(0.15),
+              blurRadius: 20,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Stack(
+          fit: StackFit.expand,
+          children: [
+            _isLocating
+                ? Container(
+                    color: Colors.grey[100],
+                    child: const Center(
+                      child: CircularProgressIndicator(color: Color(0xFF4BA028)),
+                    ),
+                  )
+                : FlutterMap(
+                    options: MapOptions(
+                      initialCenter: LatLng(lat, lng),
+                      initialZoom: 15.0,
+                      interactionOptions: const InteractionOptions(
+                        flags: InteractiveFlag.none,
+                      ),
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.parago.app',
+                      ),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: LatLng(lat, lng),
+                            width: 44,
+                            height: 44,
                             child: Container(
-                              width: 18,
-                              height: 18,
                               decoration: BoxDecoration(
-                                color: const Color(0xFF1A7D6F),
+                                color: const Color(0xFF4BA028).withOpacity(0.2),
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 3),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.2),
-                                    blurRadius: 4,
+                              ),
+                              child: Center(
+                                child: Container(
+                                  width: 20,
+                                  height: 20,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF2D6A1E),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 3),
                                   ),
-                                ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
+                        ],
                       ),
                     ],
                   ),
-                ],
+
+            // Bottom info strip
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.transparent, Colors.black.withOpacity(0.55)],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.my_location, color: Colors.white, size: 14),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _locationAddress ?? "Your current location",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2D6A1E),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.map_outlined, color: Colors.white, size: 12),
+                          SizedBox(width: 5),
+                          Text(
+                            "View Map",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
+            ),
+          ],
+        ),
       ),
+    ),
     );
   }
 
@@ -445,10 +420,10 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -457,12 +432,12 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF25A896).withOpacity(0.12),
+            padding: const EdgeInsets.all(12),
+            decoration: const BoxDecoration(
+              color: Color(0xFF2D6A1E),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.my_location, color: Color(0xFF1A7D6F), size: 22),
+            child: const Icon(Icons.my_location, color: Colors.white, size: 20),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -503,13 +478,13 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
         final routes = snapshot.data?.keys.toList() ?? [];
 
         return Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.06),
+                color: Colors.black.withOpacity(0.05),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -521,17 +496,17 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
               const Text(
                 "Select a Route",
                 style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                  color: Color(0xFF1A1A1A),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: Colors.black87,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 "Choose your jeepney route to view the live map",
-                style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+                style: TextStyle(fontSize: 14, color: Colors.grey[500]),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
               if (routes.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
@@ -542,9 +517,9 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
                 )
               else
                 ...routes.map((route) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.only(bottom: 12),
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(20),
                     onTap: () {
                       Navigator.push(
                         context,
@@ -557,42 +532,42 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
                       );
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF25A896).withOpacity(0.06),
-                        borderRadius: BorderRadius.circular(12),
+                        color: const Color(0xFFF9FAFB),
+                        borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: const Color(0xFF25A896).withOpacity(0.15),
+                          color: Colors.black.withOpacity(0.03),
                         ),
                       ),
                       child: Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF25A896).withOpacity(0.15),
+                            padding: const EdgeInsets.all(10),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF2D6A1E),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(
                               Icons.directions_bus,
-                              color: Color(0xFF1A7D6F),
-                              size: 20,
+                              color: Colors.white,
+                              size: 18,
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 16),
                           Expanded(
                             child: Text(
                               route,
                               style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF1A1A1A),
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
                               ),
                             ),
                           ),
                           const Icon(
                             Icons.arrow_forward_ios,
-                            color: Color(0xFF25A896),
+                            color: Colors.grey,
                             size: 16,
                           ),
                         ],
@@ -664,8 +639,9 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
                     "See all on map",
                     style: TextStyle(
                       fontSize: 13,
-                      color: Color(0xFF25A896),
-                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1A1A1A),
+                      fontWeight: FontWeight.w700,
+                      decoration: TextDecoration.underline,
                     ),
                   ),
                 ),
@@ -708,33 +684,33 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
         );
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: jeep.status == 'Available'
-                    ? const Color(0xFF25A896).withOpacity(0.12)
+                    ? const Color(0xFF4BA028).withOpacity(0.12)
                     : Colors.orange.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(20),
               ),
               child: Icon(
                 Icons.directions_bus,
                 color: jeep.status == 'Available'
-                    ? const Color(0xFF1A7D6F)
+                    ? const Color(0xFF2D6A1E)
                     : Colors.orange[700],
                 size: 24,
               ),
@@ -765,7 +741,7 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
                       Icon(
                         Icons.event_seat,
                         size: 14,
-                        color: seatsLeft > 0 ? const Color(0xFF25A896) : Colors.red[400],
+                        color: seatsLeft > 0 ? const Color(0xFF4BA028) : Colors.red[400],
                       ),
                       const SizedBox(width: 4),
                       Text(
@@ -775,7 +751,7 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: seatsLeft > 0 ? const Color(0xFF25A896) : Colors.red[400],
+                          color: seatsLeft > 0 ? const Color(0xFF4BA028) : Colors.red[400],
                         ),
                       ),
                     ],
@@ -787,7 +763,7 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: jeep.status == 'Available'
-                    ? const Color(0xFF25A896).withOpacity(0.12)
+                    ? const Color(0xFF4BA028).withOpacity(0.12)
                     : Colors.orange.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(20),
               ),
@@ -797,7 +773,7 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                   color: jeep.status == 'Available'
-                      ? const Color(0xFF1A7D6F)
+                      ? const Color(0xFF2D6A1E)
                       : Colors.orange[800],
                 ),
               ),
@@ -969,7 +945,7 @@ class _PassengerLiveMapScreenState extends State<PassengerLiveMapScreen> {
                 options: MapOptions(
                   initialCenter: LatLng(centerLat, centerLng),
                   initialZoom: 15.0,
-                  onTap: (_, _) {
+                  onTap: (tapPos, point) {
                     setState(() {
                       _selectedJeepId = null;
                       _operatorProfile = null;
@@ -996,7 +972,7 @@ class _PassengerLiveMapScreenState extends State<PassengerLiveMapScreen> {
                           Polyline(
                             points: entry.value,
                             strokeWidth: 5.0,
-                            color: const Color(0xFF1A7D6F),
+                            color: const Color(0xFF2D6A1E),
                           ),
                         ];
                       }).toList(),
@@ -1021,18 +997,18 @@ class _PassengerLiveMapScreenState extends State<PassengerLiveMapScreen> {
                             children: [
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 6,
+                                  horizontal: 12, vertical: 8,
                                 ),
                                 decoration: BoxDecoration(
                                   color: isSelected
-                                      ? const Color(0xFF1A7D6F)
+                                      ? const Color(0xFF2D6A1E)
                                       : Colors.white,
                                   borderRadius: BorderRadius.circular(20),
                                   boxShadow: [
                                     BoxShadow(
-                                      blurRadius: 6,
-                                      color: Colors.black.withValues(alpha: 0.3),
-                                      offset: const Offset(0, 3),
+                                      blurRadius: isSelected ? 12 : 6,
+                                      color: Colors.black.withOpacity(isSelected ? 0.15 : 0.08),
+                                      offset: const Offset(0, 4),
                                     ),
                                   ],
                                 ),
@@ -1051,7 +1027,7 @@ class _PassengerLiveMapScreenState extends State<PassengerLiveMapScreen> {
                               const SizedBox(height: 4),
                               Icon(
                                 Icons.directions_bus,
-                                color: const Color(0xFF1A7D6F),
+                                color: isSelected ? const Color(0xFF2D6A1E) : const Color(0xFF4BA028),
                                 size: isSelected ? 56 : 48,
                               ),
                             ],
@@ -1118,13 +1094,13 @@ class _PassengerLiveMapScreenState extends State<PassengerLiveMapScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1A7D6F),
-                      borderRadius: BorderRadius.circular(24),
+                      color: const Color(0xFF2D6A1E),
+                      borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
+                          color: Colors.black.withOpacity(0.15),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
                         ),
                       ],
                     ),
@@ -1156,15 +1132,15 @@ class _PassengerLiveMapScreenState extends State<PassengerLiveMapScreen> {
               left: 16,
               right: 16,
               child: Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.12),
-                      blurRadius: 24,
-                      offset: const Offset(0, 8),
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 32,
+                      offset: const Offset(0, 12),
                     ),
                   ],
                 ),
@@ -1182,7 +1158,7 @@ class _PassengerLiveMapScreenState extends State<PassengerLiveMapScreen> {
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
-                            color: Color(0xFF1A1A1A),
+                            color: Colors.black87,
                           ),
                         ),
                         Text(
@@ -1190,7 +1166,7 @@ class _PassengerLiveMapScreenState extends State<PassengerLiveMapScreen> {
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF25A896),
+                            color: Color(0xFF4BA028),
                           ),
                         ),
                       ],
@@ -1214,12 +1190,12 @@ class _PassengerLiveMapScreenState extends State<PassengerLiveMapScreen> {
                         // Driver avatar
                         CircleAvatar(
                           radius: 24,
-                          backgroundColor: const Color(0xFF25A896).withValues(alpha: 0.15),
+                          backgroundColor: const Color(0xFF4BA028).withValues(alpha: 0.15),
                           backgroundImage: _operatorProfile?.profilePictureUrl != null
                               ? NetworkImage(_operatorProfile!.profilePictureUrl!)
                               : null,
                           child: _operatorProfile?.profilePictureUrl == null
-                              ? const Icon(Icons.person, color: Color(0xFF1A7D6F), size: 26)
+                              ? const Icon(Icons.person, color: Color(0xFF2D6A1E), size: 26)
                               : null,
                         ),
                         const SizedBox(width: 12),
@@ -1233,7 +1209,7 @@ class _PassengerLiveMapScreenState extends State<PassengerLiveMapScreen> {
                                 style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,
-                                  color: Color(0xFF1A1A1A),
+                                  color: Colors.black87,
                                 ),
                               ),
                               const SizedBox(height: 2),
@@ -1259,7 +1235,7 @@ class _PassengerLiveMapScreenState extends State<PassengerLiveMapScreen> {
                               style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
-                                color: Color(0xFF1A1A1A),
+                                color: Colors.black87,
                               ),
                             ),
                             Text(
@@ -1288,14 +1264,13 @@ class _PassengerLiveMapScreenState extends State<PassengerLiveMapScreen> {
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF25A896),
+                          backgroundColor: const Color(0xFF2D6A1E),
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16), // Increased padding
-                          minimumSize: const Size(double.infinity, 54), // Explicit height and full width
+                          padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          elevation: 0,
+                          elevation: 2,
                         ),
                         child: const Text(
                           "View Full Details",
